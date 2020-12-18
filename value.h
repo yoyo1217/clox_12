@@ -34,7 +34,7 @@ typedef struct {
 // check a value's type
 #define IS_BOOL(value)    ((value).type == VAL_BOOL)
 #define IS_NIL(value)     ((value).type == VAL_NIL)
-#define IS_NUMBER(value)  ((value).tupe == VAL_NUMBER)
+#define IS_NUMBER(value)  ((value).type == VAL_NUMBER)
  
 
 typedef struct{
@@ -44,6 +44,7 @@ typedef struct{
 } ValueArray;
 
 
+bool valuesEqual(Value a, Value b);
 void initValueArray(ValueArray *array);
 void writeValueArray(ValueArray *array, Value value);
 void freeValueArray(ValueArray *array);
