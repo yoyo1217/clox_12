@@ -69,7 +69,7 @@ static void concatenate(){
 
     int length = a->length + b->length;
     char* chars = ALLOCATE(char, length+1);
-    memcpy(chars + a->chars, a->length);
+    memcpy(chars, a->chars, a->length);
     memcpy(chars + a->length, b->chars, b->length);
     chars[length] = '\0';
 
@@ -148,9 +148,12 @@ push(valueType(a op b)); \
             }
             push(NUMBER_VAL(-AS_NUMBER(pop())));
             break;
-      case OP_RETURN: {
+    case OP_PRINT: {
         printValue(pop());
         printf("\n");
+        break;
+    }
+      case OP_RETURN: {
         return INTERPRET_OK;
       }
     }

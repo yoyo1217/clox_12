@@ -93,6 +93,18 @@ static void consume(TokenType type, const char* message){
 }
 
 
+static bool check(TokenType type){
+    return parser.current.type == type;
+}
+
+
+static bool match(TokenType type){
+    if(!check(type)) return false;
+    advance();
+    return true;
+}
+
+
 // translate source code to bytecodes
 static void emitByte(uint8_t byte){
     writeChunk(currentChunk(), byte, parser.previous.line);
@@ -130,11 +142,13 @@ static void endCompiler(){
 }
 
 static void expression();
+static void statement();
+static void declearation();
 static ParseRule* getRule(TokenType type);
 static void parsePrecedence(Precedence precedence);
 
 
-static void binary(){
+static void binary(bool canAssign){
     // remember the operator.
     TokenType operatorType = parser.previous.type;
 
@@ -159,7 +173,7 @@ static void binary(){
 }
 
 
-static void literal(){
+static void literal(bool canAssign){
     switch(parser.previous.type){
         case TOKEN_FALSE: emitByte(OP_FALSE); break;
         case TOKEN_NIL: emitByte(OP_NIL); break;
@@ -175,18 +189,19 @@ static void grouping(){
 }
 
 
-static void number(){
+static void number(bool canAssign){
     double value = strtod(parser.previous.start, NULL);
     emitConstant(NUMBER_VAL(value));
 }
 
 
-static void string(){
-    emitConstant(OBJ_VAL(copyString(parser.previous.start + 1, parser.previous.length - 2)));
+static void string(bool canAssign){
+    emitConstant(OBJ_VAL(copyString(parser.previous.start + 1,
+                                    parser.previous.length - 2)));
 }
 
 
-static void unary(){
+static void unary(bool canAssign){
     TokenType operatorType = parser.previous.type;
 
     // compile operand
@@ -270,12 +285,36 @@ static void expression(){
     parsePrecedence(PREC_ASSIGNMENT);
 }
 
+
+static void printStatement(){
+    expression();
+    consume(TOKEN_SEMICOLON, "Expect ';' after value.");
+    emitByte(OP_PRINT);
+}
+
+
+static void declearation(){
+    statement();
+}
+
+
+static void statement(){
+    if(match(TOKEN_PRINT)){
+        printStatement();
+    }
+}
+
 bool compile(const char *source, Chunk* chunk){
   initScanner(source);
   compilingChunk = chunk;
   parser.hadError = false;
   parser.panicMode = false;
   advance();
+
+  while(!match(TOKEN_EOF)){
+      declearation();
+  }
+
   expression();
   consume(TOKEN_EOF, "Expect end of expression.");
   endCompiler();
