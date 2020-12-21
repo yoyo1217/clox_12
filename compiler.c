@@ -5,6 +5,7 @@
 #include "chunk.h"
 #include "common.h"
 #include "compiler.h"
+#include "object.h"
 #include "scanner.h"
 #ifdef DEBUG_PRINT_CODE
 #include "debug.h"
@@ -148,7 +149,7 @@ static ParseRule* getRule(TokenType type);
 static void parsePrecedence(Precedence precedence);
 
 
-static void binary(bool canAssign){
+static void binary(){
     // remember the operator.
     TokenType operatorType = parser.previous.type;
 
@@ -173,7 +174,7 @@ static void binary(bool canAssign){
 }
 
 
-static void literal(bool canAssign){
+static void literal(){
     switch(parser.previous.type){
         case TOKEN_FALSE: emitByte(OP_FALSE); break;
         case TOKEN_NIL: emitByte(OP_NIL); break;
@@ -189,19 +190,19 @@ static void grouping(){
 }
 
 
-static void number(bool canAssign){
+static void number(){
     double value = strtod(parser.previous.start, NULL);
     emitConstant(NUMBER_VAL(value));
 }
 
 
-static void string(bool canAssign){
+static void string(){
     emitConstant(OBJ_VAL(copyString(parser.previous.start + 1,
                                     parser.previous.length - 2)));
 }
 
 
-static void unary(bool canAssign){
+static void unary(){
     TokenType operatorType = parser.previous.type;
 
     // compile operand
@@ -277,6 +278,22 @@ static void parsePrecedence(Precedence precedence){
     }
 }
 
+
+static uint8_t identifierConstant(Token* name){
+    return makeConstant(OBJ_VAL(copyString(name->start, name->length)));
+}
+
+
+static uint8_t parseVariable(const char* errorMessage){
+    consume(TOKEN_IDENTIFIER, errorMessage);
+    return identifierConstant(&parser.previous);
+}
+
+
+static void defineVariable(uint8_t global){
+    emitBytes(OP_DEFINE_GLOBAL, global);
+}
+
 static ParseRule* getRule(TokenType type){
     return &rules[type];
 }
@@ -286,6 +303,25 @@ static void expression(){
 }
 
 
+static void varDeclaration(){
+    uint8_t global = parseVariable("Expect variable name.");
+
+    if(match(TOKEN_EQUAL)){
+        expression();
+    }else{
+        emitByte(OP_NIL);
+    }
+    consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
+    defineVariable(global);
+}
+
+
+static void expressionStatement(){
+    expression();
+    consume(TOKEN_SEMICOLON, "Expect ';' after expression.");
+    emitByte(OP_POP);
+}
+
 static void printStatement(){
     expression();
     consume(TOKEN_SEMICOLON, "Expect ';' after value.");
@@ -293,14 +329,48 @@ static void printStatement(){
 }
 
 
+static void synchronize(){
+    parser.panicMode = false;
+
+    while(parser.current.type != TOKEN_EOF){
+        if(parser.previous.type == TOKEN_SEMICOLON) return;
+
+        switch (parser.current.type) {
+            case TOKEN_CLASS:
+            case TOKEN_FUN:
+            case TOKEN_VAR:
+            case TOKEN_FOR:
+            case TOKEN_IF:
+            case TOKEN_WHILE:
+            case TOKEN_PRINT:
+            case TOKEN_RETURN:
+                return;
+
+            default:
+                // do nothing.
+                ;
+        }
+
+        advance();
+    }
+}
+
 static void declearation(){
-    statement();
+    if(match(TOKEN_VAR)){
+        varDeclaration();
+    }else{
+        statement();
+    }
+
+    if(parser.panicMode) synchronize();
 }
 
 
 static void statement(){
     if(match(TOKEN_PRINT)){
         printStatement();
+    }else{
+        expressionStatement();
     }
 }
 
